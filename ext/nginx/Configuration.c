@@ -286,6 +286,7 @@ passenger_create_loc_conf(ngx_conf_t *cf)
 
     conf->enabled = NGX_CONF_UNSET;
     conf->use_global_queue = NGX_CONF_UNSET;
+    conf->ping_app_after_request = NGX_CONF_UNSET;
     conf->friendly_error_pages = NGX_CONF_UNSET;
     conf->union_station_support = NGX_CONF_UNSET;
     conf->debugger = NGX_CONF_UNSET;
@@ -399,6 +400,7 @@ passenger_merge_loc_conf(ngx_conf_t *cf, void *parent, void *child)
 
     ngx_conf_merge_value(conf->enabled, prev->enabled, 0);
     ngx_conf_merge_value(conf->use_global_queue, prev->use_global_queue, 1);
+    ngx_conf_merge_value(conf->ping_app_after_request, prev->ping_app_after_request, 1);
     ngx_conf_merge_value(conf->friendly_error_pages, prev->friendly_error_pages, 1);
     ngx_conf_merge_value(conf->union_station_support, prev->union_station_support, 0);
     ngx_conf_merge_value(conf->debugger, prev->debugger, 0);
@@ -1099,6 +1101,13 @@ const ngx_command_t passenger_commands[] = {
       ngx_conf_set_flag_slot,
       NGX_HTTP_LOC_CONF_OFFSET,
       offsetof(passenger_loc_conf_t, use_global_queue),
+      NULL },
+
+    { ngx_string("passenger_ping_app_after_request"),
+      NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_HTTP_LIF_CONF | NGX_CONF_FLAG,
+      ngx_conf_set_flag_slot,
+      NGX_HTTP_LOC_CONF_OFFSET,
+      offsetof(passenger_loc_conf_t, ping_app_after_request),
       NULL },
 
     { ngx_string("passenger_friendly_error_pages"),

@@ -100,6 +100,56 @@ describe "Phusion Passenger for Nginx" do
 		end
 	end
 	
+	describe "MyCook(tm) beta running with ping app after request" do
+		before :all do
+			@server = "http://1.passenger.test:#{@nginx.port}"
+			@base_uri = ""
+			@stub = RailsStub.new('2.3/mycook')
+			
+			@nginx.add_server do |server|
+				server[:server_name]                      = "1.passenger.test"
+				server[:root]                             = "#{@stub.full_app_root}/public"
+				server[:passenger_ping_app_after_request] = 'on'
+				server[:passenger_use_global_queue]       = 'on'
+			end
+			@nginx.start
+		end
+		
+		after :all do
+			FileUtils.rm_rf('tmp.webdir')
+			@stub.destroy
+		end
+		
+		before :each do
+			@stub.reset
+			
+			File.write("#{@stub.app_root}/config/initializers/after_request.rb", %q{
+				::PhusionPassenger::AbstractRequestHandler.after_request = lambda do
+					sleep 1
+				end
+			})
+		end
+		
+		it_should_behave_like "MyCook(tm) beta"
+		
+		it "does not return the worker to the pool until after request hook completes" do
+			pid1 = get("/welcome/pid")
+			sleep 0.75
+			pid2 = get("/welcome/pid")
+			sleep 0.5
+			pid3 = get("/welcome/pid")
+			
+			# the first worker is busy sleeping in the after request hook, so the 
+			# second request should spawn a second worker
+			pid1.should_not == pid2
+			
+			# the first worker should not be finished and available to handle 
+			# additional requests
+			pid3.should == pid1
+		end
+		
+	end
+	
 	describe "Rack application running in root URI" do
 		before :all do
 			@server = "http://passenger.test:#{@nginx.port}"
@@ -261,7 +311,6 @@ describe "Phusion Passenger for Nginx" do
 			get("/pid").should_not == pid
 		end
 	end
-	
 	
 	##### Helper methods #####
 	

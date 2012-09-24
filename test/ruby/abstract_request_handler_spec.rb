@@ -13,6 +13,7 @@ describe AbstractRequestHandler do
 		Utils.passenger_tmpdir = "abstract_request_handler_spec.tmp"
 		@owner_pipe = IO.pipe
 		@request_handler = AbstractRequestHandler.new(@owner_pipe[1], @options || {})
+		AbstractRequestHandler.after_request = nil
 		def @request_handler.process_request(*args)
 			# Do nothing.
 		end
@@ -137,6 +138,38 @@ describe AbstractRequestHandler do
 		ensure
 			client.close
 		end
+	end
+	
+	it "calls after request hook after normal requests" do
+		after_request_called = false
+		AbstractRequestHandler.after_request = lambda do
+			after_request_called = true
+		end
+		@request_handler.start_main_loop_thread
+		client = connect
+		begin
+			send_binary_request(client,
+				"REQUEST_METHOD" => "GET")
+		ensure
+			client.close
+		end
+		after_request_called.should == true
+	end
+	
+	it "does not call after request hook after ping requests" do
+		after_request_called = false
+		AbstractRequestHandler.after_request = lambda do
+			after_request_called = true
+		end
+		@request_handler.start_main_loop_thread
+		client = connect
+		begin
+			send_binary_request(client,
+				"REQUEST_METHOD" => "PING")
+		ensure
+			client.close
+		end
+		after_request_called.should == false
 	end
 	
 	specify "the HTTP socket rejects headers that are too large" do

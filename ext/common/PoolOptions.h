@@ -176,6 +176,12 @@ struct PoolOptions {
 	bool useGlobalQueue;
 	
 	/**
+	 * Whether to ping the backend process after a request (in order to determine whether it is ready 
+	 * to handle more requests) before returning it to the pool. Only useful when using useGlobalQueue.
+	 */
+	bool pingAppAfterRequest;
+	
+	/**
 	 * Whether to show the Phusion Passenger version number in the
 	 * X-Powered-By header.
 	 */
@@ -243,6 +249,7 @@ struct PoolOptions {
 		maxRequests             = 0;
 		minProcesses            = 0;
 		useGlobalQueue          = false;
+		pingAppAfterRequest     = false;
 		showVersionInHeader     = true;
 		statThrottleRate        = 0;
 		rights                  = DEFAULT_BACKEND_ACCOUNT_RIGHTS;
@@ -272,6 +279,7 @@ struct PoolOptions {
 		unsigned long maxRequests    = 0,
 		unsigned long minProcesses   = 0,
 		bool useGlobalQueue          = false,
+		bool pingAppAfterRequest     = false,
 		bool showVersionInHeader     = true,
 		unsigned long statThrottleRate = 0,
 		const string &restartDir     = "",
@@ -295,6 +303,7 @@ struct PoolOptions {
 		this->maxRequests             = maxRequests;
 		this->minProcesses            = minProcesses;
 		this->useGlobalQueue          = useGlobalQueue;
+		this->pingAppAfterRequest     = pingAppAfterRequest;
 		this->showVersionInHeader     = showVersionInHeader;
 		this->statThrottleRate        = statThrottleRate;
 		this->restartDir              = restartDir;
@@ -350,6 +359,7 @@ struct PoolOptions {
 		maxRequests      = atol(vec[startIndex + offset]);           offset += 2;
 		minProcesses     = atol(vec[startIndex + offset]);           offset += 2;
 		useGlobalQueue   = vec[startIndex + offset] == "true";       offset += 2;
+		pingAppAfterRequest = vec[startIndex + offset] == "true";    offset += 2;
 		showVersionInHeader = vec[startIndex + offset] == "true";    offset += 2;
 		statThrottleRate = atol(vec[startIndex + offset]);           offset += 2;
 		restartDir       = vec[startIndex + offset];                 offset += 2;
@@ -407,6 +417,7 @@ struct PoolOptions {
 		appendKeyValue3(vec, "max_requests",       maxRequests);
 		appendKeyValue3(vec, "min_processes",      minProcesses);
 		appendKeyValue4(vec, "use_global_queue",   useGlobalQueue);
+		appendKeyValue4(vec, "ping_app_after_request", pingAppAfterRequest);
 		appendKeyValue4(vec, "show_version_in_header", showVersionInHeader);
 		appendKeyValue3(vec, "stat_throttle_rate", statThrottleRate);
 		appendKeyValue (vec, "restart_dir",        restartDir);

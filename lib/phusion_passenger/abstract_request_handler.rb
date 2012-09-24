@@ -158,6 +158,10 @@ class AbstractRequestHandler
 	# A password with which clients must authenticate. Default is unauthenticated.
 	attr_accessor :connect_password
 	
+	class << self
+		attr_accessor :after_request
+	end
+	
 	# Create a new RequestHandler with the given owner pipe.
 	# +owner_pipe+ must be the readable part of a pipe IO object.
 	#
@@ -521,7 +525,11 @@ private
 			ensure
 				finalize_request(headers, has_error)
 			end
+		
+			close_connection(connection)
+			run_after_request(headers) unless headers[REQUEST_METHOD] == PING
 		end
+		
 		return true
 	rescue => e
 		if socket_wrapper.source_of_exception?(e)
@@ -539,19 +547,7 @@ private
 			raise e
 		end
 	ensure
-		# The 'close_write' here prevents forked child
-		# processes from unintentionally keeping the
-		# connection open.
-		if connection && !connection.closed?
-			begin
-				connection.close_write
-			rescue SystemCallError
-			end
-			begin
-				connection.close
-			rescue SystemCallError
-			end
-		end
+		close_connection(connection)
 		if input_stream && !input_stream.closed?
 			input_stream.close rescue nil
 		end
@@ -753,6 +749,29 @@ private
 			log.message("Backtrace: #{backtrace_string}")
 		ensure
 			log.close
+		end
+	end
+	
+	def close_connection(connection)
+		# The 'close_write' here prevents forked child
+		# processes from unintentionally keeping the
+		# connection open.
+		if connection && !connection.closed?
+			begin
+				connection.close_write
+			rescue SystemCallError
+			end
+			begin
+				connection.close
+			rescue SystemCallError
+			end
+		end
+	end
+	
+	def run_after_request(headers)
+		after_request = ::PhusionPassenger::AbstractRequestHandler.after_request
+		if after_request && after_request.respond_to?(:call)
+			after_request.send(:call, headers)
 		end
 	end
 end

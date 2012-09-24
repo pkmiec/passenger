@@ -807,22 +807,23 @@ private:
 			} else {
 				options.appGroupName = appGroupName;
 			}
-			options.useGlobalQueue = parser.getHeader("PASSENGER_USE_GLOBAL_QUEUE") == "true";
-			options.environment    = parser.getHeader("PASSENGER_ENVIRONMENT");
-			options.spawnMethod    = parser.getHeader("PASSENGER_SPAWN_METHOD");
-			options.user           = parser.getHeader("PASSENGER_USER");
-			options.group          = parser.getHeader("PASSENGER_GROUP");
-			options.defaultUser    = defaultUser;
-			options.defaultGroup   = defaultGroup;
-			options.appType        = parser.getHeader("PASSENGER_APP_TYPE");
-			options.rights         = Account::parseRightsString(
+			options.useGlobalQueue      = parser.getHeader("PASSENGER_USE_GLOBAL_QUEUE") == "true";
+			options.pingAppAfterRequest = parser.getHeader("PASSENGER_PING_APP_AFTER_REQUEST") == "true";
+			options.environment         = parser.getHeader("PASSENGER_ENVIRONMENT");
+			options.spawnMethod         = parser.getHeader("PASSENGER_SPAWN_METHOD");
+			options.user                = parser.getHeader("PASSENGER_USER");
+			options.group               = parser.getHeader("PASSENGER_GROUP");
+			options.defaultUser         = defaultUser;
+			options.defaultGroup        = defaultGroup;
+			options.appType             = parser.getHeader("PASSENGER_APP_TYPE");
+			options.rights              = Account::parseRightsString(
 				parser.getHeader("PASSENGER_APP_RIGHTS"),
 				DEFAULT_BACKEND_ACCOUNT_RIGHTS);
-			options.minProcesses   = atol(parser.getHeader("PASSENGER_MIN_INSTANCES"));
-			options.maxRequests    = atol(parser.getHeader("PASSENGER_MAX_REQUESTS"));
+			options.minProcesses        = atol(parser.getHeader("PASSENGER_MIN_INSTANCES"));
+			options.maxRequests         = atol(parser.getHeader("PASSENGER_MAX_REQUESTS"));
 			options.frameworkSpawnerTimeout = atol(parser.getHeader("PASSENGER_FRAMEWORK_SPAWNER_IDLE_TIME"));
-			options.appSpawnerTimeout       = atol(parser.getHeader("PASSENGER_APP_SPAWNER_IDLE_TIME"));
-			options.debugger       = parser.getHeader("PASSENGER_DEBUGGER") == "true";
+			options.appSpawnerTimeout   = atol(parser.getHeader("PASSENGER_APP_SPAWNER_IDLE_TIME"));
+			options.debugger            = parser.getHeader("PASSENGER_DEBUGGER") == "true";
 			options.showVersionInHeader = parser.getHeader("PASSENGER_SHOW_VERSION_IN_HEADER") == "true";
 			
 			UPDATE_TRACE_POINT();
@@ -913,6 +914,40 @@ private:
 				
 				forwardResponse(session, clientFd, log);
 				
+				clientFd.close();
+				
+				if (options.pingAppAfterRequest) {
+					AnalyticsScopeLog scope(log, "post request ping");
+					session->closeStream();
+					session->initiate();
+					
+					end = headers;
+					
+					memcpy(end, "REQUEST_METHOD", sizeof("REQUEST_METHOD"));
+					end += sizeof("REQUEST_METHOD");
+					
+					memcpy(end, "PING", sizeof("PING"));
+					end += sizeof("PING");
+					
+					memcpy(end, "PASSENGER_CONNECT_PASSWORD", sizeof("PASSENGER_CONNECT_PASSWORD"));
+					end += sizeof("PASSENGER_CONNECT_PASSWORD");
+					
+					memcpy(end, session->getConnectPassword().c_str(),
+					  session->getConnectPassword().size() + 1);
+					end += session->getConnectPassword().size() + 1;
+					
+					session->sendHeaders(headers, end - headers);
+					
+					fd_set readfds;
+					FD_ZERO(&readfds);
+					FD_SET(session->getStream(), &readfds);
+					syscalls::select(session->getStream() + 1, &readfds, NULL, NULL, NULL); 
+					
+					session->closeStream();
+				 
+					scope.success();
+				}
+
 				requestProxyingScope.success();
 			} catch (const SpawnException &e) {
 				handleSpawnException(clientFd, e,
@@ -922,9 +957,7 @@ private:
 					"It seems the user clicked on the 'Stop' button in his "
 					"browser.");
 			}
-			
 			requestProcessingScope.success();
-			clientFd.close();
 		} catch (const boost::thread_interrupted &) {
 			throw;
 		} catch (const tracable_exception &e) {
